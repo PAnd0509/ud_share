@@ -9,7 +9,7 @@ from app.crud.nosql_crud import (
     update_follower_status,
 )
 
-router = APIRouter()
+router = APIRouter(prefix="/followers", tags=["Followers"])
 
 @router.get("/followers")
 async def api_list_followers():
