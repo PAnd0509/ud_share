@@ -1,7 +1,7 @@
 # app/routes/user.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.config.db.postgres import get_db
+from app.db.postgres import get_db
 from app.schemas.user import UserCreate, UserOut, UserUpdate
 from app.crud.sql_crud import (
     create_user,

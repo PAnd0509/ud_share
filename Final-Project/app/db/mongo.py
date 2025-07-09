@@ -5,3 +5,6 @@ from app.scripts.init_mongo import init_collections
 client = MongoClient(MONGO_URL)
 db = client[MONGO_DB]
 init_collections(db)
+
+def get_db():
+    return db
