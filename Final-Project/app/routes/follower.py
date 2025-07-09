@@ -1,30 +1,31 @@
-# app/routes/follower.py
+from app.models.nosql_models import FollowerDoc
 from fastapi import APIRouter, HTTPException
-from app.models.follower_doc import FollowerDoc
+from fastapi.concurrency import run_in_threadpool
 from app.crud.nosql_crud import (
-    create_follower, get_all_followers,
-    get_follower_by_id, delete_follower, update_follower_status
+    create_follower,
+    get_all_followers,
+    get_follower_by_id,
+    delete_follower,
+    update_follower_status,
 )
 
-router = APIRouter(prefix="/followers", tags=["Followers"])
+router = APIRouter()
 
-@router.post("/", response_model=FollowerDoc)
-async def create_follower_route(data: FollowerDoc):
-    try:
-        return await create_follower(data)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+@router.get("/followers")
+async def api_list_followers():
+    return await run_in_threadpool(get_all_followers)
 
-@router.get("/", response_model=list[FollowerDoc])
-async def list_followers():
-    return await get_all_followers()
+@router.post("/followers", response_model=FollowerDoc, status_code=201)
+async def api_create_follower(follower: FollowerDoc):
+    return await create_follower(follower)
 
-@router.get("/{follower_id}", response_model=FollowerDoc)
-async def get_follower(follower_id: str):
-    doc = await get_follower_by_id(follower_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail="Follower not found")
+@router.get("/followers/{fid}", response_model=FollowerDoc)
+async def api_get_follower(fid: str):
+    doc = await get_follower_by_id(fid)
+    if doc is None:
+        raise HTTPException(404, "Follower not found")
     return doc
+
 
 @router.delete("/{follower_id}")
 async def delete_follower_route(follower_id: str):

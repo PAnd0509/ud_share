@@ -1,4 +1,5 @@
 from pymongo import MongoClient, ASCENDING, errors
+from pymongo.errors import CollectionInvalid, OperationFailure
 from typing import Dict, Any
 
 
@@ -99,16 +100,19 @@ def init_collections(db):
                 validator={"$jsonSchema": schema},
                 validationLevel="strict",
             )
-            print(f" Colección creada: {coll_name}")
-        except errors.CollectionInvalid:
-            # Si ya existe, sólo actualiza el validador
-            db.command(
-                "collMod",
-                coll_name,
-                validator={"$jsonSchema": schema},
-                validationLevel="strict",
-            )
-            print(f"✓ Colección actualizada: {coll_name}")
+            print(f"✓ Colección creada: {coll_name}")
+        except CollectionInvalid:
+            print(f"ℹ La colección '{coll_name}' ya existe.")
+            try:
+                db.command(
+                    "collMod",
+                    coll_name,
+                    validator={"$jsonSchema": schema},
+                    validationLevel="strict",
+                )
+                print(f"✓ Validador actualizado para: {coll_name}")
+            except OperationFailure as e:
+                print(f"⚠ No se pudo aplicar el validador a '{coll_name}': {e.details.get('errmsg', str(e))}")
 
     # Índices
     db["follower"].create_index(
@@ -117,19 +121,11 @@ def init_collections(db):
         name="uq_follower_pair",
     )
 
-    db["comment"].create_index(
-        [("post_id", ASCENDING)], name="ix_comment_post"
-    )
-    db["comment"].create_index(
-        [("user_id", ASCENDING)], name="ix_comment_user"
-    )
+    db["comment"].create_index([("post_id", ASCENDING)], name="ix_comment_post")
+    db["comment"].create_index([("user_id", ASCENDING)], name="ix_comment_user")
 
     db["reaction"].create_index(
-        [
-            ("user_id", ASCENDING),
-            ("post_id", ASCENDING),
-            ("comment_id", ASCENDING),
-        ],
+        [("user_id", ASCENDING), ("post_id", ASCENDING), ("comment_id", ASCENDING)],
         unique=True,
         name="uq_reaction_once",
     )
@@ -138,19 +134,10 @@ def init_collections(db):
         [("post_id", ASCENDING), ("date_modificate", ASCENDING)],
         name="ix_hist_post",
     )
+
     db["historical_comment"].create_index(
         [("comment_id", ASCENDING), ("date_modificate", ASCENDING)],
         name="ix_hist_comment",
     )
 
-    print("MongoDB listo ✓")
-
-
-#  CLI opcional
-#     $ python -m app.db.init_mongo
-if __name__ == "__main__":
-    from app.config.settings import MONGO_URL, MONGO_DB  # ajusta a tu config
-
-    client = MongoClient(MONGO_URL)
-    db = client[MONGO_DB]
-    init_collections(db)
+    print("✓ MongoDB listo")

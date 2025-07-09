@@ -1,8 +1,9 @@
 # app/routes/cat_type_user.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.config.db.postgres import get_db
+from app.db.postgres import get_db
 from app.schemas.cat_type_user import CatTypeUserCreate, CatTypeUserOut, CatTypeUserUpdate
+
 from app.crud.sql_crud import (
     create_cat_type_user,
     get_all_cat_type_users,

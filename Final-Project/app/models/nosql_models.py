@@ -1,8 +1,8 @@
-from datetime import date
+from datetime import datetime
 from typing import Optional, Literal, List
 
 from bson import ObjectId
-from pydantic import BaseModel, Field, root_validator, validator
+from pydantic import BaseModel, Field, root_validator, validator, model_validator
 
 
 # Small helper so Pydantic handles ObjectId
@@ -30,7 +30,7 @@ class FollowerDoc(BaseModel):
     follower_user_id: int = Field(..., gt=0, description="SQL user.id that follows")
     followed_user_id: int = Field(..., gt=0, description="SQL user.id being followed")
 
-    date_begin_follow: date = Field(default_factory=date.today)
+    date_begin_follow: datetime = Field(default_factory=datetime.today)
     status: Literal["ON", "OFF"] = "ON"
 
     # ----- validation rules -----
@@ -61,7 +61,7 @@ class CommentDoc(BaseModel):
         description="IDs de archivos en attached_multimedia vinculados a este comentario",
     )
 
-    date_comment: date = Field(default_factory=date.today)
+    date_comment: datetime = Field(default_factory=datetime.today)
 
     # ----- validación opcional -----
     @validator("multimedia_ids", each_item=True)
@@ -86,10 +86,10 @@ class ReactionDoc(BaseModel):
     cat_reaction_id: int = Field(
         ..., gt=0, description="SQL cat_reaction.id – type of emoji/reaction"
     )
-    date_reaction: date = Field(default_factory=date.today)
+    date_reaction: datetime = Field(default_factory=datetime.today)
 
     # ----- XOR rule: post xor comment -----
-    @root_validator
+    @model_validator(mode="after")
     def check_target_exclusive(cls, values):
         post_id, comment_id = values.get("post_id"), values.get("comment_id")
         if (post_id is None) == (comment_id is None):
@@ -109,10 +109,10 @@ class HistoricalPostDoc(BaseModel):
     id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
 
     post_id: int = Field(..., gt=0, description="SQL post.id")
-    date_modificate: date = Field(..., description="When the change occurred")
+    date_modificate: datetime = Field(..., description="When the change occurred")
     text_version: str = Field(..., max_length=800)
     status: Literal["EDIT", "DEL"]
-    date_create: Optional[date] = Field(None, description="Original creation date")
+    date_create: Optional[datetime] = Field(None, description="Original creation date")
 
     class Config:
         allow_population_by_field_name = True
@@ -125,10 +125,10 @@ class HistoricalCommentDoc(BaseModel):
     id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
 
     comment_id: int = Field(..., gt=0, description="SQL comment.id")
-    date_modificate: date = Field(..., description="When the change occurred")
+    date_modificate: datetime = Field(..., description="When the change occurred")
     text_version: str = Field(..., max_length=800)
     status: Literal["EDIT", "DEL"]
-    date_create: Optional[date] = Field(None, description="Original creation date")
+    date_create: Optional[datetime] = Field(None, description="Original creation date")
 
     class Config:
         allow_population_by_field_name = True
