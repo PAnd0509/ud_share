@@ -1,0 +1,20 @@
+# Backend web framework
+fastapi==0.110.0
+uvicorn[standard]==0.29.0
+
+# PostgreSQL
+sqlalchemy==2.0.30
+psycopg2-binary==2.9.9
+
+# MongoDB
+pymongo==4.7.2
+mongoengine==0.29.1
+
+# Kafka
+aiokafka==0.10.0
+
+# Variables de entorno
+python-dotenv==1.0.1
+
+# Validación de datos
+pydantic==2.7.1
