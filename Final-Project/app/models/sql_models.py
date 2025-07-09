@@ -131,46 +131,70 @@ class ReportUser(Base):
             name="chk_report_status",
         ),
     )
+    
+#  MÓDULO DE POST
 
-#  MÓDULO DE POSTS
+def create_post(db: Session, post_data: PostCreate):
+    new_post = Post(**post_data.dict())
+    db.add(new_post)
+    db.commit()
+    db.refresh(new_post)
+    return new_post
 
-class Post(Base):
-    __tablename__ = "post"
+def get_post_by_id(db: Session, post_id: int):
+    return db.query(Post).filter(Post.id == post_id).first()
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    date_post = Column(Date, nullable=False, server_default=text("CURRENT_DATE"))
-    text_post = Column(String(800), nullable=False)
-    fk_visibility_type = Column(Integer, ForeignKey("cat_visibility_type.id"))
-    fk_user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
+def get_all_posts(db: Session):
+    return db.query(Post).all()
 
-class AttachedMultimedia(Base):
-    __tablename__ = "attached_multimedia"
+def update_post(db: Session, post_id: int, update_data: PostUpdate):
+    post = get_post_by_id(db, post_id)
+    if not post:
+        return None
+    for key, value in update_data.dict(exclude_unset=True).items():
+        setattr(post, key, value)
+    db.commit()
+    db.refresh(post)
+    return post
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(30), nullable=False)
-    format = Column(String(4), nullable=False)
-    size = Column(String(10))
-    characteristics = Column(String(100))
+def delete_post(db: Session, post_id: int):
+    post = get_post_by_id(db, post_id)
+    if not post:
+        return None
+    db.delete(post)
+    db.commit()
+    return post
 
-    fk_post_id = Column(Integer, ForeignKey("post.id"), nullable=True)
-    fk_comment_id = Column(Integer, ForeignKey("comment.id"), nullable=True)
+# -------- ATTACHED MULTIMEDIA --------
 
-    # 🔗  Relaciones ORM para acceder al post o comentario desde el objeto
-    post = relationship("Post", back_populates="attachments", foreign_keys=[fk_post_id])
-    comment = relationship(
-        "Comment", back_populates="attachments", foreign_keys=[fk_comment_id]
-    )
+def create_attachment(db: Session, data: AttachedMultimediaCreate):
+    # ⚠️ Validación XOR ya está en el modelo SQL con CheckConstraint
+    new_media = AttachedMultimedia(**data.dict())
+    db.add(new_media)
+    db.commit()
+    db.refresh(new_media)
+    return new_media
 
-    __table_args__ = (
-        CheckConstraint(
-            "format IN ('jpg','png','gif','mp4')",
-            name="chk_media_format",
-        ),
-        # XOR: debe apuntar solo a post o solo a comment
-        CheckConstraint(
-            "(fk_post_id IS NULL) <> (fk_comment_id IS NULL)",
-            name="chk_media_target",
-        ),
-        # 📌  Índice para acelerar las búsquedas por comentario
-        Index("ix_attmult_fk_comment", "fk_comment_id"),
-    )
+def get_attachment_by_id(db: Session, media_id: int):
+    return db.query(AttachedMultimedia).filter(AttachedMultimedia.id == media_id).first()
+
+def get_all_attachments(db: Session):
+    return db.query(AttachedMultimedia).all()
+
+def update_attachment(db: Session, media_id: int, update_data: AttachedMultimediaUpdate):
+    media = get_attachment_by_id(db, media_id)
+    if not media:
+        return None
+    for key, value in update_data.dict(exclude_unset=True).items():
+        setattr(media, key, value)
+    db.commit()
+    db.refresh(media)
+    return media
+
+def delete_attachment(db: Session, media_id: int):
+    media = get_attachment_by_id(db, media_id)
+    if not media:
+        return None
+    db.delete(media)
+    db.commit()
+    return media
