@@ -1,132 +1,141 @@
-import datetime as _dt
-from typing import Optional
+from datetime import date
+from typing import Optional, Literal, List
 
-from mongoengine import Document, EmbeddedDocument, StringField, DateTimeField, ReferenceField, ObjectIdField, connect, ValidationError,
-
-
-
-def init_db(uri: str, **kwargs) -> None:
-    connect(host=uri, **kwargs)
+from bson import ObjectId
+from pydantic import BaseModel, Field, root_validator, validator
 
 
-class User(Document):
-    meta = {"collection": "user"}
-    nickname = StringField(max_length=10, unique=True, required=True)
+# Small helper so Pydantic handles ObjectId
 
+class PyObjectId(ObjectId):
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
 
-class Post(Document):
-    meta = {"collection": "post"}
-    text_post = StringField(max_length=800, required=True)
+    @classmethod
+    def validate(cls, v):  # noqa: D401  (simple validator)
+        if isinstance(v, ObjectId):
+            return v
+        try:
+            return ObjectId(str(v))
+        except Exception as exc:  # pragma: no cover
+            raise ValueError("Not a valid ObjectId") from exc
 
+#  FOLLOWER  (collection: follower)
 
-class CatReaction(Document):
-    meta = {"collection": "cat_reaction"}
-    reaction = StringField(max_length=6, unique=True, required=True)
+class FollowerDoc(BaseModel):
 
+    id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
 
-#  MAIN MODULE DOCUMENTS
-class Follower(Document):
-    """
-    A follows B (unique pair) – status ON/OFF
-    """
+    follower_user_id: int = Field(..., gt=0, description="SQL user.id that follows")
+    followed_user_id: int = Field(..., gt=0, description="SQL user.id being followed")
 
-    meta = {
-        "collection": "follower",
-        "indexes": [
-            {"fields": ("follower", "followed"), "unique": True},
-        ],
-    }
+    date_begin_follow: date = Field(default_factory=date.today)
+    status: Literal["ON", "OFF"] = "ON"
 
-    date_begin_follow = DateTimeField(default=_dt.datetime.utcnow)
-    follower = ReferenceField(User, required=True, reverse_delete_rule=2)  # CASCADE
-    followed = ReferenceField(User, required=True, reverse_delete_rule=2)
-    status = StringField(
-        choices=("ON", "OFF"),
-        required=True,
+    # ----- validation rules -----
+    @validator("followed_user_id")
+    def users_must_be_distinct(cls, v, values):
+        if "follower_user_id" in values and v == values["follower_user_id"]:
+            raise ValueError("A user cannot follow themselves.")
+        return v
+
+    class Config:
+        allow_population_by_field_name = True
+        json_encoders = {ObjectId: str}
+        schema_extra = {"collection": "follower"}
+
+# COMMENT  (collection: comment)
+
+class CommentDoc(BaseModel):
+
+    id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
+
+    text_comment: str = Field(..., min_length=1, max_length=800)
+    post_id: int = Field(..., gt=0, description="SQL post.id")
+    user_id: int = Field(..., gt=0, description="SQL user.id who writes")
+
+    # 👉  NUEVO: lista de enteros que apuntan a attached_multimedia.id
+    multimedia_ids: List[int] = Field(
+        default_factory=list,
+        description="IDs de archivos en attached_multimedia vinculados a este comentario",
     )
 
-    def clean(self) -> None:
-        if self.follower == self.followed:
-            raise ValidationError("A user cannot follow themselves.")
+    date_comment: date = Field(default_factory=date.today)
+
+    # ----- validación opcional -----
+    @validator("multimedia_ids", each_item=True)
+    def ids_must_be_positive(cls, v):
+        if v <= 0:
+            raise ValueError("Cada multimedia_id debe ser un entero positivo.")
+        return v
+
+    class Config:
+        allow_population_by_field_name = True
+        json_encoders = {ObjectId: str}
+        schema_extra = {"collection": "comment"}
+
+#  REACTION  (collection: reaction)
+
+class ReactionDoc(BaseModel):
+    id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
+
+    user_id: int = Field(..., gt=0, description="SQL user.id who reacts")
+    post_id: Optional[int] = Field(None, gt=0, description="SQL post.id")
+    comment_id: Optional[int] = Field(None, gt=0, description="SQL comment.id")
+    cat_reaction_id: int = Field(
+        ..., gt=0, description="SQL cat_reaction.id – type of emoji/reaction"
+    )
+    date_reaction: date = Field(default_factory=date.today)
+
+    # ----- XOR rule: post xor comment -----
+    @root_validator
+    def check_target_exclusive(cls, values):
+        post_id, comment_id = values.get("post_id"), values.get("comment_id")
+        if (post_id is None) == (comment_id is None):
+            raise ValueError("Reaction must reference either a post or a comment, not both.")
+        return values
+
+    class Config:
+        allow_population_by_field_name = True
+        json_encoders = {ObjectId: str}
+        schema_extra = {"collection": "reaction"}
 
 
-class Comment(Document):
-    """
-    Comment belongs to a Post & an Author (User)
-    """
+#   HISTORICAL POST / COMMENT VERSION
 
-    meta = {"collection": "comment"}
+class HistoricalPostDoc(BaseModel):
 
-    text_comment = StringField(max_length=800, required=True)
-    user = ReferenceField(User, required=True, reverse_delete_rule=2)
-    post = ReferenceField(Post, required=True, reverse_delete_rule=2)
-    date_create = DateTimeField(default=_dt.datetime.utcnow)
+    id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
 
+    post_id: int = Field(..., gt=0, description="SQL post.id")
+    date_modificate: date = Field(..., description="When the change occurred")
+    text_version: str = Field(..., max_length=800)
+    status: Literal["EDIT", "DEL"]
+    date_create: Optional[date] = Field(None, description="Original creation date")
 
-class Reaction(Document):
-    """
-    Reaction to either a Post XOR a Comment
-    """
-
-    meta = {
-        "collection": "reaction",
-        "indexes": [
-            # Ensure a user can react only once to the same target
-            {"fields": ("user", "post", "comment"), "unique": True},
-        ],
-    }
-
-    date_reaction = DateTimeField(default=_dt.datetime.utcnow)
-    user = ReferenceField(User, required=True, reverse_delete_rule=2)
-    post = ReferenceField(Post, null=True, reverse_delete_rule=2)
-    comment = ReferenceField(Comment, null=True, reverse_delete_rule=2)
-    cat_reaction = ReferenceField(CatReaction, required=True, reverse_delete_rule=2)
-
-    def clean(self) -> None:
-        """
-        Enforces XOR rule: target must be *either* post or comment, not both, not none.
-        """
-        has_post = self.post is not None
-        has_comment = self.comment is not None
-        if has_post == has_comment:  # both True or both False
-            raise ValidationError(
-                "Reaction must reference exactly one of `post` or `comment`."
-            )
+    class Config:
+        allow_population_by_field_name = True
+        json_encoders = {ObjectId: str}
+        schema_extra = {"collection": "historical_post"}
 
 
-class HistoricalPost(Document):
-    """
-    Immutable versions of a Post (EDIT / DEL states)
-    """
+class HistoricalCommentDoc(BaseModel):
 
-    meta = {
-        "collection": "historical_post",
-        "indexes": [
-            {"fields": ("post", "date_modificate"), "unique": True},
-        ],
-    }
+    id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
 
-    post = ReferenceField(Post, required=True, reverse_delete_rule=2)
-    date_modificate = DateTimeField(required=True)
-    text_version = StringField(max_length=800, required=True)
-    status = StringField(choices=("EDIT", "DEL"), required=True)
-    date_create = DateTimeField(default=_dt.datetime.utcnow)
+    comment_id: int = Field(..., gt=0, description="SQL comment.id")
+    date_modificate: date = Field(..., description="When the change occurred")
+    text_version: str = Field(..., max_length=800)
+    status: Literal["EDIT", "DEL"]
+    date_create: Optional[date] = Field(None, description="Original creation date")
 
+    class Config:
+        allow_population_by_field_name = True
+        json_encoders = {ObjectId: str}
+        schema_extra = {"collection": "historical_comment"}
 
-class HistoricalComment(Document):
-    """
-    Immutable versions of a Comment
-    """
+#  OPTIONAL helper – Referential check
 
-    meta = {
-        "collection": "historical_comment",
-        "indexes": [
-            {"fields": ("comment", "date_modificate"), "unique": True},
-        ],
-    }
-
-    comment = ReferenceField(Comment, required=True, reverse_delete_rule=2)
-    date_modificate = DateTimeField(required=True)
-    text_version = StringField(max_length=800, required=True)
-    status = StringField(choices=("EDIT", "DEL"), required=True)
-    date_create = DateTimeField(default=_dt.datetime.utcnow)
+def sql_reference_exists(session, model_cls, pk: int) -> bool:
+    return session.query(model_cls).filter_by(id=pk).first() is not None
