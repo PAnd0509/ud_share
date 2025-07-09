@@ -1,3 +1,5 @@
-# ud_share_dbii
+# Final Proyect Database II
 
-Hola
+## Members
+Paola Andrea Cuellar Beltran    -   20191020119  
+Johan David Ebratt Saenz        -   20191020126
