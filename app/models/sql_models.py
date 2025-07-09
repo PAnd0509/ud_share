@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, Date, ForeignKey, CheckConstraint, UniqueConstraint, PrimaryKeyConstraint, text
+from sqlalchemy import Column, Integer, String, Date, ForeignKey, CheckConstraint, UniqueConstraint, PrimaryKeyConstraint, text, Index
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
 
 Base = declarative_base()
 
@@ -150,15 +151,26 @@ class AttachedMultimedia(Base):
     format = Column(String(4), nullable=False)
     size = Column(String(10))
     characteristics = Column(String(100))
-    fk_post_id = Column(Integer, ForeignKey("post.id"))
-    fk_comment_id = Column(Integer, ForeignKey("comment.id"))
+
+    fk_post_id = Column(Integer, ForeignKey("post.id"), nullable=True)
+    fk_comment_id = Column(Integer, ForeignKey("comment.id"), nullable=True)
+
+    # 🔗  Relaciones ORM para acceder al post o comentario desde el objeto
+    post = relationship("Post", back_populates="attachments", foreign_keys=[fk_post_id])
+    comment = relationship(
+        "Comment", back_populates="attachments", foreign_keys=[fk_comment_id]
+    )
 
     __table_args__ = (
         CheckConstraint(
-            "format IN ('jpg','png','gif','mp4')", name="chk_media_format"
+            "format IN ('jpg','png','gif','mp4')",
+            name="chk_media_format",
         ),
+        # XOR: debe apuntar solo a post o solo a comment
         CheckConstraint(
             "(fk_post_id IS NULL) <> (fk_comment_id IS NULL)",
             name="chk_media_target",
         ),
+        # 📌  Índice para acelerar las búsquedas por comentario
+        Index("ix_attmult_fk_comment", "fk_comment_id"),
     )

@@ -1,5 +1,7 @@
 from pymongo import MongoClient
-from app.config.settings import MONGO_URL
+from app.config.settings import MONGO_URL, MONGO_DB
+from app.scripts.init_mongo import init_collections
 
-mongo_client = MongoClient(MONGO_URL)
-mongo_db = mongo_client["ud_sharem"]
+client = MongoClient(MONGO_URL)
+db = client[MONGO_DB]
+init_collections(db)
