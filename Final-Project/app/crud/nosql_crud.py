@@ -20,8 +20,6 @@ async def create_follower(data: FollowerDoc) -> FollowerDoc:
     follower_dict["_id"] = result.inserted_id
     return FollowerDoc(**follower_dict)
 
-def _col():
-    return get_db()[COLLECTION]
 
 def get_all_followers(limit: int = 1000) -> list[FollowerDoc]:
     cursor = _col().find().limit(limit)
