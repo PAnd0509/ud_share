@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from app.models.sql_models import CatTypeUser, User, UserAddData
+from app.models.sql_models import CatTypeUser, User, UserAddData, Post
 from app.schemas.cat_type_user import CatTypeUserCreate, CatTypeUserUpdate 
 from app.schemas.user import UserOut, UserCreate, UserUpdate
 from app.schemas.user_add_data import UserAddDataOut, UserAddDataUpdate, UserAddDataCreate

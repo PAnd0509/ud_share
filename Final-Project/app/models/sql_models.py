@@ -132,3 +132,13 @@ class ReportUser(Base):
         ),
     )
   
+class Post(Base):
+    __tablename__ = "post"
+
+    id = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
+    text_post = Column(String(250), nullable=False)
+    date_post = Column(
+        Date, nullable=False, server_default=text("CURRENT_DATE")
+    )
+    fk_visibility_type = Column(Integer, ForeignKey("cat_visibility_type.id"))
+    fk_user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
