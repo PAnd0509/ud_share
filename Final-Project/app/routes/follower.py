@@ -1,4 +1,3 @@
-from app.models.nosql_models import FollowerDoc
 from fastapi import APIRouter, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from app.crud.nosql_crud import (
@@ -8,24 +7,24 @@ from app.crud.nosql_crud import (
     delete_follower,
     update_follower_status,
 )
+from app.models.nosql_models import FollowerDoc
 
 router = APIRouter(prefix="/followers", tags=["Followers"])
 
-@router.get("/followers")
+@router.get("")
 async def api_list_followers():
     return await run_in_threadpool(get_all_followers)
 
-@router.post("/followers", response_model=FollowerDoc, status_code=201)
+@router.post("", response_model=FollowerDoc, status_code=201)
 async def api_create_follower(follower: FollowerDoc):
     return await create_follower(follower)
 
-@router.get("/followers/{fid}", response_model=FollowerDoc)
+@router.get("/{fid}", response_model=FollowerDoc)
 async def api_get_follower(fid: str):
     doc = await get_follower_by_id(fid)
     if doc is None:
         raise HTTPException(404, "Follower not found")
     return doc
-
 
 @router.delete("/{follower_id}")
 async def delete_follower_route(follower_id: str):

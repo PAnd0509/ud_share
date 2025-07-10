@@ -1,8 +1,9 @@
 from typing import List, Literal, Optional
 from bson import ObjectId
 from pymongo import ReturnDocument
-from datetime import date
-
+from datetime import datetime, date
+from fastapi.concurrency import run_in_threadpool
+from fastapi import HTTPException
 from app.db.mongo import get_db               
 from app.models.nosql_models import FollowerDoc
 
@@ -14,11 +15,29 @@ def _collection():
 
 # Crear seguimiento
 
-async def create_follower(data: FollowerDoc) -> FollowerDoc:
-    follower_dict = data.dict(by_alias=True, exclude_none=True)
-    result = await _collection().insert_one(follower_dict)
-    follower_dict["_id"] = result.inserted_id
-    return FollowerDoc(**follower_dict)
+async def create_follower(follower: FollowerDoc):
+    collection = _collection()
+
+    # Verificación previa
+    exists = await run_in_threadpool(lambda: collection.find_one({
+        "follower_user_id": follower.follower_user_id,
+        "followed_user_id": follower.followed_user_id
+    }))
+    if exists:
+        raise HTTPException(status_code=409, detail="Follower already exists")
+    
+    follower_dict = follower.dict(exclude_unset=True, exclude_none=True)
+
+    if "date_begin_follow" not in follower_dict:
+        follower_dict["date_begin_follow"] = datetime.utcnow()
+    else:
+        # Si vino como date (de Pydantic), conviértelo a datetime
+        if isinstance(follower_dict["date_begin_follow"], date):
+            follower_dict["date_begin_follow"] = datetime.combine(follower_dict["date_begin_follow"], datetime.min.time())
+
+    result = await run_in_threadpool(lambda: collection.insert_one(follower_dict))
+    follower.id = str(result.inserted_id)
+    return follower
 
 
 def get_all_followers(limit: int = 1000) -> list[FollowerDoc]:
